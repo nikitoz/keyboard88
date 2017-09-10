@@ -36,7 +36,6 @@ const int fade_away_time_ms = 5000;
 const int can_release_time_ms = 100;
 const int base_velocity = 79;
 const int aftertouch_velocity_bump = 10;
-int pedal_added_velocity = 0;
 // Mega pins for matrix rows, controlling note on/off
 byte row_pins[rows] = {24, 25, 26, 27, 28, 29};
 // Mega pins for matrix rows, controlling aftertouch
@@ -44,8 +43,13 @@ byte row_aftertouch_pins[rows] = {18, 19, 20, 21, 22, 23};
 // Mega pins for matrix columns
 byte col_pins[cols] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44};
 
+byte pedal_col_pins[2] = {48, 49};
+byte pedal_row_pins[1] = {50};
+char pedals[1][2] = {{0x43, 0x40}};
+
 Keypad kpd = Keypad(makeKeymap(keys), row_pins, col_pins, rows, cols);
 Keypad kpd_aftertouch = Keypad(makeKeymap(keys), row_aftertouch_pins, col_pins, rows, cols);
+Keypad kpd_pedals = Keypad(makeKeymap(pedals), pedal_row_pins, pedal_col_pins, 1, 2);
 
 void setup() {
     // Listen incoming MIDI at channel 4
@@ -59,7 +63,7 @@ void setup() {
 void process_key_pressed() {
     if (!kpd.getKeys())
         return;
-    const int velocity = base_velocity + pedal_added_velocity;
+    const int velocity = base_velocity;
     for (int i = 0; i < LIST_MAX; ++i) {
         if (!kpd.key[i].stateChanged)
             continue;
@@ -77,16 +81,29 @@ void process_key_pressed() {
     }
 }
 
-void process_pedals() {}
-
-void process_volume_control() {}
+void process_pedals() {
+    if (!kpd_pedals.getKeys())
+        return;
+    for (int i = 0; i < LIST_MAX; ++i) {
+        if (!kpd_pedals.key[i].stateChanged)
+            continue;
+        switch (kpd_pedals.key[i].kstate) {
+        case PRESSED:
+            MIDI.sendControlChange(kpd_pedals.key[i].kchar, 127, 1);
+            break;
+        case RELEASED:
+            MIDI.sendControlChange(kpd_pedals.key[i].kchar, 0, 1);
+            break;
+        }
+    }
+}
 
 void process_aux_buttons() {}
 
 void process_aftertouch() {
     if (!kpd_aftertouch.getKeys())
         return;
-    const int velocity = base_velocity + pedal_added_velocity + aftertouch_velocity_bump;
+    const int velocity = base_velocity + aftertouch_velocity_bump;
     for (int i = 0; i < LIST_MAX; i++) {
         if (!kpd_aftertouch.key[i].stateChanged)
             continue;
@@ -99,7 +116,6 @@ void process_aftertouch() {
 
 void loop() {
     process_pedals();
-    process_volume_control();
     process_key_pressed();
     process_aftertouch();
 }
